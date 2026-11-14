@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>耳机差评洞察 · 评论分析交互工具</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#fff; --ink:#1a1d21; --ink2:#5b6572; --ink3:#8b95a3;
+  --line:#e6e9ee; --line2:#eef1f5;
+  --pos:#3f9d6f; --pos-bg:#e8f4ee;
+  --neg:#c25a52; --neg-bg:#fbecea;
+  --mix:#b8892f; --mix-bg:#fbf3e2;
+  --neu:#8b95a3; --neu-bg:#f0f2f5;
+  --acc:#2f6fd0; --acc-bg:#eaf1fc;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.05);
+  --shadow2:0 8px 30px rgba(16,24,40,.10);
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--acc);text-decoration:none}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+}
+.topbar-in{max-width:1320px;margin:0 auto;padding:0 22px;display:flex;align-items:center;gap:20px;height:56px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;font-size:15px;letter-spacing:-.2px;white-space:nowrap}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+.nav{display:flex;gap:2px;margin-left:6px}
+.nav button{
+  border:0;background:transparent;color:var(--ink2);padding:7px 13px;border-radius:7px;
+  font-size:13.5px;font-weight:500;transition:.15s;
+}
+.nav button:hover{background:var(--line2);color:var(--ink)}
+.nav button.on{background:var(--ink);color:#fff}
+.spacer{flex:1}
+
+/* ---------- 布局 ---------- */
+.wrap{max-width:1320px;margin:0 auto;padding:18px 22px 70px}
+.view{display:none}
+.view.on{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:26px 0 12px}
+.sec-h h2{margin:0;font-size:16px;font-weight:650;letter-spacing:-.2px}
+.sec-h .sub{color:var(--ink3);font-size:12.5px}
+.muted{color:var(--ink3)}
+.tiny{font-size:12px}
+
+/* ---------- 口径条 ---------- */
+.caliber{
+  background:linear-gradient(180deg,#fbfcfd,#f7f9fb);
+  border:1px solid var(--line);border-radius:var(--r);padding:13px 16px;margin-bottom:16px;
+  display:flex;flex-wrap:wrap;gap:8px 26px;align-items:center;font-size:12.5px;color:var(--ink2);
+}
+.caliber b{color:var(--ink);font-weight:650;font-size:15px;font-variant-numeric:tabular-nums}
+.caliber .ci{display:flex;align-items:baseline;gap:6px}
+.caliber .warn{color:#9a6a12;background:#fdf6e6;border:1px solid #f2e3bd;border-radius:6px;padding:4px 9px;font-size:12px}
+
+/* ---------- 商品列表 ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.search{
+  flex:1;min-width:210px;max-width:340px;position:relative;
+}
+.search input{
+  width:100%;padding:9px 12px 9px 33px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);outline:none;transition:.15s;font-size:13.5px;
+}
+.search input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+.search .ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:13px}
+.seg{display:flex;background:var(--line2);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:6px;font-size:12.5px;color:var(--ink2);font-weight:500}
+.seg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);user-select:none;cursor:pointer}
+.chk input{accent-color:var(--acc);cursor:pointer}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:14px}
+.pcard{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;
+  box-shadow:var(--shadow);transition:.16s;cursor:pointer;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:11px;
+}
+.pcard:hover{border-color:#cfd8e3;box-shadow:var(--shadow2);transform:translateY(-1px)}
+.pcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.pcard.full::before{background:var(--acc)}
+.pcard.sample::before{background:#c9b98a}
+.pcard .ttl{font-weight:600;font-size:13.5px;line-height:1.45;letter-spacing:-.1px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
+  padding:2.5px 7px;border-radius:5px;letter-spacing:.2px}
+.badge.full{background:var(--acc-bg);color:#24549d}
+.badge.sample{background:#faf3df;color:#8a6a1c}
+.pmath{display:flex;gap:16px;font-size:12px;color:var(--ink3);flex-wrap:wrap}
+.pmath b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums;font-size:13.5px}
+
+/* 好评/差评比例条 */
+.pbar{display:flex;flex-direction:column;gap:5px}
+.pbar .pl{display:flex;justify-content:space-between;font-size:11.5px;font-variant-numeric:tabular-nums}
+.pbar .pt{height:5px;border-radius:3px;background:#eef1f5;overflow:hidden;display:flex}
+.pbar .pt span{height:100%}
+
+/* 星级分布（横向条） */
+.sdist{display:flex;flex-direction:column;gap:2.5px;padding-top:9px;border-top:1px dashed var(--line2)}
+.srow{display:flex;align-items:center;gap:7px;font-size:10.5px;line-height:1.5}
+.srow .sk{width:20px;color:var(--ink3);font-variant-numeric:tabular-nums;flex-shrink:0}
+.srow .strack{flex:1;height:6px;background:#f0f2f5;border-radius:3px;overflow:hidden}
+.srow .sfill{display:block;height:100%;border-radius:3px;transition:width .3s}
+.srow .sfill.g{background:var(--pos)}
+.srow .sfill.y{background:var(--mix)}
+.srow .sfill.r{background:var(--neg)}
+.srow .sv{width:34px;text-align:right;color:var(--ink3);font-variant-numeric:tabular-nums;flex-shrink:0}
+
+.rate{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink3)}
+.rate .bar{flex:1;height:4px;border-radius:3px;background:#eef1f5;overflow:hidden;display:flex}
+.rate .bar span{height:100%}
+
+/* ---------- 详情 ---------- */
+.phdr{padding:20px 22px;border-bottom:1px solid var(--line2)}
+.phdr .back{color:var(--ink2);font-size:12.5px;margin-bottom:10px;display:inline-flex;gap:5px;align-items:center;border:0;background:0;padding:0}
+.phdr .back:hover{color:var(--ink)}
+.phdr h1{margin:0 0 6px;font-size:19px;font-weight:660;letter-spacing:-.35px;line-height:1.4}
+.phdr .meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);margin-top:9px}
+.pbody{padding:20px 22px 24px}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.two,.three{grid-template-columns:1fr}}
+
+.hl{padding:14px 16px}
+.hl h3{margin:0 0 11px;font-size:12.5px;font-weight:650;color:var(--ink2);letter-spacing:.3px;text-transform:uppercase}
+.hl .row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line2);font-size:13px}
+.hl .row:last-child{border-bottom:0}
+.hl .nm{flex:1;font-weight:500}
+.hl .vl{font-variant-numeric:tabular-nums;font-weight:650;font-size:13px}
+
+/* 维度条 */
+.dimrow{display:grid;grid-template-columns:112px 1fr 62px;gap:11px;align-items:center;
+  padding:6px 8px;border-radius:7px;cursor:pointer;transition:.12s}
+.dimrow:hover{background:var(--line2)}
+.dimrow .nm{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
+.dimrow .nm .id{font-size:10px;color:var(--ink3);font-family:ui-monospace,Menlo,monospace}
+.dbar{height:15px;border-radius:4px;background:#f0f2f5;overflow:hidden;display:flex;min-width:60px}
+.dbar span{height:100%;transition:.2s}
+.dbar span.p{background:var(--pos)}
+.dbar span.m{background:var(--mix)}
+.dbar span.n{background:var(--neg)}
+.dbar span.o{background:#d8dde4}
+.dimrow .n{text-align:right;font-size:11.5px;color:var(--ink3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dimrow.sel{background:var(--acc-bg);outline:1px solid #cfe0f7}
+
+/* ---------- 评论区 ---------- */
+.cmtbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.pill{border:1px solid var(--line);background:var(--panel);padding:5.5px 12px;border-radius:20px;
+  font-size:12.5px;color:var(--ink2);font-weight:500;transition:.13s;white-space:nowrap}
+.pill:hover{border-color:#cdd6e1;color:var(--ink)}
+.pill.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pill.pos.on{background:var(--pos);border-color:var(--pos)}
+.pill.neg.on{background:var(--neg);border-color:var(--neg)}
+.pill.mix.on{background:var(--mix);border-color:var(--mix)}
+.pill .c{opacity:.62;margin-left:4px;font-variant-numeric:tabular-nums}
+
+.cmt{border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:var(--panel);transition:.13s}
+.cmt:hover{border-color:#dde3ea}
+.cmt .ch{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px;font-size:12px;color:var(--ink3)}
+.rs{font-weight:700;font-size:12px;padding:1.5px 6px;border-radius:4px;font-variant-numeric:tabular-nums}
+.rs.r1{background:#fbe9e7;color:#b4453c}.rs.r2{background:#fcf0e7;color:#ab6b2c}
+.rs.r3{background:#f3f1e9;color:#8a7c3e}.rs.r4{background:#eef4e9;color:#5d7f43}
+.rs.r5{background:var(--pos-bg);color:#2f7b56}
+.tag{background:var(--line2);color:var(--ink2);padding:1.5px 7px;border-radius:4px;font-size:11px}
+.zh{font-size:13.5px;line-height:1.65;margin:6px 0 8px}
+.zh li{margin:2px 0}
+.q{font-size:12.5px;line-height:1.6;padding:7px 11px;border-radius:6px;margin:5px 0;border-left:3px solid}
+.q.p{background:var(--pos-bg);border-color:var(--pos);color:#2c6b4c}
+.q.n{background:var(--neg-bg);border-color:var(--neg);color:#8f3f38}
+.q.m{background:var(--mix-bg);border-color:var(--mix);color:#7d5e20}
+.q em{background:rgba(255,214,0,.34);font-style:normal;font-weight:600;border-radius:2px;padding:0 1px}
+.full-t{font-size:12.5px;color:var(--ink2);line-height:1.68;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line2);white-space:pre-wrap}
+.more{background:0;border:0;padding:0;font-size:12px;color:var(--acc);margin-top:7px}
+
+/* ---------- 对比矩阵 ---------- */
+.mxwrap{overflow:auto;border-radius:var(--r)}
+table.mx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;background:var(--panel)}
+.mx th,.mx td{padding:0;border-bottom:1px solid var(--line2)}
+.mx thead th{
+  position:sticky;top:0;z-index:3;background:var(--panel);padding:10px 8px;font-weight:600;
+  font-size:11.5px;color:var(--ink2);text-align:center;border-bottom:1px solid var(--line);
+  vertical-align:bottom;line-height:1.35;
+}
+.mx thead th:first-child{left:0;z-index:5;text-align:left;min-width:132px}
+.mx tbody th{
+  position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:0 12px;
+  font-weight:500;font-size:12.5px;border-right:1px solid var(--line2);white-space:nowrap;height:38px;
+}
+.mx tbody tr:hover th{background:#fafbfc}
+.cell{padding:0;height:38px;text-align:center;cursor:pointer;position:relative;transition:.1s}
+.cell .in{display:flex;align-items:center;justify-content:center;height:38px;margin:3px;border-radius:5px;
+  font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:600;transition:.1s;flex-direction:column;line-height:1.15;gap:1px}
+.cell:hover .in{outline:2px solid var(--ink);outline-offset:-2px}
+.cell .na{color:#c8ced6;font-size:11px;font-weight:400}
+.cell .sm{font-size:9.5px;font-weight:500;opacity:.72}
+.legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-top:12px}
+.lg-i{display:flex;align-items:center;gap:6px}
+.lg-sw{width:24px;height:12px;border-radius:3px}
+
+/* ---------- 抽屉 ---------- */
+.mask{position:fixed;inset:0;background:rgba(15,20,28,.36);z-index:100;display:none;backdrop-filter:blur(2px)}
+.mask.on{display:block}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(560px,94vw);background:var(--panel);z-index:101;
+  transform:translateX(102%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(16,24,40,.14);
+}
+.drawer.on{transform:none}
+.dhdr{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.dhdr h3{margin:0;font-size:14px;font-weight:650;flex:1}
+.x{border:0;background:var(--line2);width:28px;height:28px;border-radius:7px;color:var(--ink2);font-size:15px;line-height:1}
+.x:hover{background:#e4e8ee;color:var(--ink)}
+.dbody{padding:18px 20px 30px;overflow:auto;flex:1}
+
+/* ---------- 上传 ---------- */
+.drop{border:2px dashed #d3dae3;border-radius:12px;padding:30px 22px;text-align:center;
+  transition:.16s;background:#fbfcfd;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--acc);background:var(--acc-bg)}
+.drop .big{font-size:15px;font-weight:600;margin-bottom:5px}
+.filelist{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+.fitem{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--line2);border-radius:8px;font-size:12.5px}
+.fitem .nm{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:0;background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;transition:.15s}
+.btn:hover{background:#000}
+.btn:disabled{background:#c8ced6;cursor:not-allowed}
+.btn.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--line2)}
+.log{margin-top:14px;padding:12px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap;max-height:280px;overflow:auto}
+.log.ok{background:var(--pos-bg);color:#2c6b4c;border:1px solid #cfe6da}
+.log.bad{background:var(--neg-bg);color:#8f3f38;border:1px solid #f0d3d0}
+.log.run{background:var(--acc-bg);color:#24549d;border:1px solid #cfe0f7}
+
+/* ---------- 杂项 ---------- */
+.empty{padding:52px 20px;text-align:center;color:var(--ink3);font-size:13px}
+.empty .e{font-size:26px;margin-bottom:10px;opacity:.5}
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;
+  display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;color:var(--ink2);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--line);font-size:11.5px}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr:hover td{background:#fafbfc}
+.warnbox{background:#fdf6e6;border:1px solid #f2e3bd;color:#8a6a1c;border-radius:8px;padding:11px 14px;font-size:12.5px;line-height:1.65}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-in">
+  <div class="brand"><span class="dot"></span>耳机差评洞察</div>
+  <nav class="nav" id="nav">
+    <button data-v="list" class="on">商品列表</button>
+    <button data-v="detail">商品详情</button>
+    <button data-v="compare">多维度对比</button>
+    <button data-v="upload">导入数据</button>
+  </nav>
+  <div class="spacer"></div>
+  <span class="muted tiny" id="stamp"></span>
+</div></div>
+
+<div class="wrap">
+
+  <!-- ============ 列表 ============ -->
+  <section class="view on" id="v-list">
+    <div class="caliber" id="caliber"></div>
+    <div class="toolbar">
+      <div class="search"><span class="ico">🔍</span><input id="q" placeholder="搜索品牌或型号，如 Bose / 降噪…"></div>
+      <div class="seg" id="sortseg">
+        <button data-s="reviews" class="on">按评论数</button>
+        <button data-s="avg">按评分</button>
+        <button data-s="neg">按差评率</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="onlyfull">只看全量分析</label>
+    </div>
+    <div class="grid" id="pgrid"></div>
+    <p class="muted tiny" style="margin-top:16px">
+      点击卡片进入详情。左侧色条：蓝色=全量分析，黄色=抽样（每款 150 条）。
+    </p>
+  </section>
+
+  <!-- ============ 详情 ============ -->
+  <section class="view" id="v-detail">
+    <div class="card" id="dmain"><div class="empty"><div class="e">👈</div>请先从商品列表选择一款耳机</div></div>
+  </section>
+
+  <!-- ============ 对比 ============ -->
+  <section class="view" id="v-compare">
+    <div class="sec-h"><h2>多维度对比</h2><span class="sub">选 2–6 款，按同一维度横向比较</span></div>
+    <div class="card" style="padding:14px 16px;margin-bottom:14px">
+      <div class="muted tiny" style="margin-bottom:9px">选择参与对比的耳机：</div>
+      <div id="cpick" style="display:flex;flex-wrap:wrap;gap:7px"></div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="sec-h" style="margin:0 0 10px"><h2 style="font-size:14px">维度 × 商品 矩阵</h2>
+        <span class="sub" id="mxnote"></span></div>
+      <div id="mxbox"></div>
+      <div class="legend">
+        <div class="lg-i"><span class="muted tiny">好评占比</span>
+          <div class="lg-sw" style="background:linear-gradient(90deg,#c0392b,#dd8a72,#d9ae5f,#7ba86b,#2f7b56);width:120px"></div>
+          低 → 高
+        </div>
+        <div class="lg-i"><div class="lg-sw" style="background:#f7f8fa;border:1px solid var(--line)"></div>无数据</div>
+        <span class="muted tiny">格子主数字＝好评占比，小字＝该维度评论数；点格子看依据</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 上传 ============ -->
+  <section class="view" id="v-upload">
+    <div class="sec-h"><h2>导入新数据</h2><span class="sub">上传后自动重算并刷新网页，无需改代码</span></div>
+    <div class="two">
+      <div class="card" style="padding:18px">
+        <div class="drop" id="drop">
+          <div class="big">把文件拖到这里，或点击选择</div>
+          <div class="muted tiny">需要 results.jsonl 与 products.json</div>
+          <input type="file" id="files" multiple accept=".jsonl,.json" hidden>
+        </div>
+        <div class="filelist" id="flist"></div>
+        <div style="display:flex;gap:9px;align-items:center;margin-top:16px;flex-wrap:wrap">
+          <label class="chk"><input type="radio" name="mode" value="merge" checked>合并到现有数据</label>
+          <label class="chk"><input type="radio" name="mode" value="replace">清空后重建</label>
+          <div class="spacer" style="flex:1"></div>
+          <button class="btn ghost" id="clr">清除</button>
+          <button class="btn" id="go" disabled>开始导入</button>
+        </div>
+        <div id="ulog"></div>
+      </div>
+      <div class="card" style="padding:18px">
+        <div class="sec-h" style="margin:0 0 10px"><h2 style="font-size:14px">导入流程</h2></div>
+        <ol style="margin:0;padding-left:19px;font-size:12.8px;line-height:2;color:var(--ink2)">
+          <li>校验文件格式与必填字段</li>
+          <li>备份当前数据（保留最近 5 次）</li>
+          <li>按「商品 × 维度 × 评论」去重统计</li>
+          <li>校验每条引文能否在原文中找到</li>
+          <li>生成各维度好评/差评分组</li>
+          <li>更新商品列表，网页立即生效</li>
+        </ol>
+        <div class="warnbox" style="margin-top:16px">
+          <b>数据口径提醒</b><br>
+          统计单位是「评论」不是「观点」；同一条评论同一维度既夸又骂记为「褒贬都有」，
+          评论区正负两列都会显示它。跨商品对比只看比例，不比条数。
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- 抽屉 -->
+<div class="mask" id="mask"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhdr"><h3 id="dt">评论原文</h3><button class="x" id="dx">✕</button></div>
+  <div class="dbody" id="dbody"></div>
+</aside>
+
+<script>
+"use strict";
+/* =========================================================
+   耳机差评洞察 —— 前端
+   数据全部来自 /api/data/...，页面不硬编码任何数字
+   ========================================================= */
+
+/* 数据来源自动适配：
+   - 有后端（本地 server.py）→ 走 /api/data/ 的零散文件
+   - 纯静态（GitHub Pages 等）→ 一次性读同目录 bundle.json，之后全在内存里
+   启动时探测一次，之后所有请求都走对应的取数通道。 */
+let API = "/api/data/";
+let BUNDLE = null;
+
+async function detectMode() {
+  // 先试后端
+  try {
+    const h = await fetch("/api/health", { cache: "no-store" });
+    if (h.ok) {
+      const j = await h.json();
+      if (j && j.ok) { API = "/api/data/"; return { backend: true, health: j }; }
+    }
+  } catch (e) { /* 落到静态模式 */ }
+  // 静态模式
+  return { backend: false, health: null };
+}
+
+async function loadBundle() {
+  if (BUNDLE) return BUNDLE;
+  const r = await fetch("bundle.json", { cache: "no-store" });
+  if (!r.ok) throw new Error("找不到 bundle.json（" + r.status + "）");
+  BUNDLE = await r.json();
+  return BUNDLE;
+}
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (a, b) => b > 0 ? (a / b * 100) : 0;
+const fmt = n => (n == null ? "–" : Number(n).toLocaleString("zh-CN"));
+
+const S = {
+  index: null, meta: null, dims: [], products: {},
+  cur: null, curDim: null, curGroup: "all",
+  sort: "reviews", q: "", onlyFull: false,
+  picked: new Set(), cache: {},
+  uploaded: []
+};
+
+/* ---------- 取数 ---------- */
+async function getJSON(p) {
+  if (S.cache[p]) return S.cache[p];
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await fetch(API + p, { cache: "no-store" });
+      if (r.status === 404) throw new Error("数据不存在：" + p);
+      if (!r.ok) throw new Error("加载失败(" + r.status + ")：" + p);
+      const j = await r.json();
+      S.cache[p] = j;
+      return j;
+    } catch (e) {
+      lastErr = e;
+      // 404 不重试；网络抖动重试
+      if (String(e.message).startsWith("数据不存在")) break;
+      await new Promise(res => setTimeout(res, 200 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+async function product(pid) {
+  if (!S.products[pid]) {
+    if (S.backend) {
+      const [p, s] = await Promise.all([
+        getJSON(`${pid}/product.json`),
+        getJSON(`${pid}/summary.json`)
+      ]);
+      S.products[pid] = { product: p, summary: s };
+    } else {
+      const b = await loadBundle();
+      const d = b.products[pid];
+      if (!d) throw new Error("数据里没有这款商品：" + pid);
+      S.products[pid] = { product: d.product, summary: d.summary };
+    }
+  }
+  return S.products[pid];
+}
+async function aspect(pid, name) {
+  if (S.backend) {
+    return getJSON(`${pid}/aspects/${encodeURIComponent(name)}_褒贬评论.json`);
+  }
+  const b = await loadBundle();
+  const d = b.products[pid];
+  const a = d && d.aspects && d.aspects[name];
+  if (!a) throw new Error("该维度暂无数据");
+  return a;
+}
+
+/* ---------- 视图切换 ---------- */
+function show(v) {
+  $$(".view").forEach(e => e.classList.toggle("on", e.id === "v-" + v));
+  $$("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+$("#nav").addEventListener("click", e => {
+  const b = e.target.closest("button[data-v]");
+  if (!b) return;
+  if (b.dataset.v === "detail" && !S.cur) { show("list"); return; }
+  if (b.dataset.v === "compare") renderCompare();
+  show(b.dataset.v);
+});
+
+/* ---------- 口径条 ---------- */
+function renderCaliber() {
+  const m = S.meta;
+  if (!m) return;
+  $("#stamp").textContent = "数据更新：" + (m.generated_at || "–");
+  const many = m.sample_count > 0;
+  $("#caliber").innerHTML = `
+    <div class="ci"><b>${fmt(m.product_count)}</b><span>款耳机</span></div>
+    <div class="ci"><b>${fmt(m.reviews_total)}</b><span>条评论</span></div>
+    <div class="ci"><b>${fmt(m.dimensions.length)}</b><span>个评价维度</span></div>
+    <div class="ci"><b>${fmt(m.full_count)}</b><span>款全量分析</span></div>
+    ${many ? `<div class="ci"><b>${fmt(m.sample_count)}</b><span>款抽样（每款约 150 条）</span></div>` : ""}
+    ${many ? `<div class="warn">⚠ 全量款 ${fmt(m.reviews_full)} 条 / 抽样款 ${fmt(m.reviews_sample)} 条 —— 跨款只比「比例」，不比「条数」</div>` : ""}
+  `;
+}
+
+/* ---------- 列表 ---------- */
+function starBars(dist) {
+  if (!dist) return `<span class="muted tiny">星级数据缺失</span>`;
+  // 注意：有些产品某档星级可能为 0 条，rating_distribution 里就没有这个 key
+  const max = Math.max(...[1, 2, 3, 4, 5].map(k => dist[String(k)] || 0), 1);
+  const rows = [5, 4, 3, 2, 1].map(k => {
+    const v = dist[String(k)] || 0;
+    const w = v / max * 100;
+    return `<div class="srow">
+      <span class="sk">${k}★</span>
+      <span class="strack"><span class="sfill ${k >= 4 ? "g" : k === 3 ? "y" : "r"}" style="width:${v > 0 ? Math.max(w, 1.5) : 0}%"></span></span>
+      <span class="sv">${fmt(v)}</span>
+    </div>`;
+  }).join("");
+  return `<div class="sdist">${rows}</div>`;
+}
+
+/* 预加载所有产品的 summary，让首屏卡片能直接显示好评/差评比例 */
+async function warmSummaries(list) {
+  // 并发过高在公网/移动网络下容易个别失败，分批加载更稳
+  const BATCH = 4;
+  for (let i = 0; i < list.length; i += BATCH) {
+    const slice = list.slice(i, i + BATCH);
+    await Promise.all(slice.map(p => product(p.product_id).catch(() => null)));
+  }
+}
+
+async function renderList() {
+  const g = $("#pgrid");
+  let list = (S.index.products || []).slice();
+  if (S.q) {
+    const q = S.q.toLowerCase();
+    list = list.filter(p => (p.title || "").toLowerCase().includes(q) || (p.name || "").toLowerCase().includes(q)
+      || (p.product_id || "").toLowerCase().includes(q));
+  }
+  if (S.onlyFull) list = list.filter(p => p.sample_type === "full");
+
+  g.innerHTML = `<div class="empty" style="grid-column:1/-1">加载中…</div>`;
+  await warmSummaries(S.index.products || []);
+
+  if (S.sort === "reviews") list.sort((a, b) => b.review_count - a.review_count);
+  if (S.sort === "avg") list.sort((a, b) => (b.rating_avg || 0) - (a.rating_avg || 0));
+
+  if (S.sort === "neg") {
+    const nr = p => {
+      const d = S.products[p.product_id];
+      if (!d) return -1;
+      let neg = 0, tot = 0;
+      d.summary.dimensions.forEach(x => { neg += x.negative; tot += x.review_count; });
+      return tot ? neg / tot : -1;
+    };
+    list.sort((a, b) => nr(b) - nr(a));
+  }
+
+  if (!list.length) {
+    g.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="e">🔍</div>没有匹配的耳机</div>`;
+    return;
+  }
+  g.innerHTML = list.map(p => {
+    const d = S.products[p.product_id];
+    let barHtml = "";
+    if (d) {
+      let neg = 0, pos = 0, mix = 0, tot = 0;
+      d.summary.dimensions.forEach(x => { neg += x.negative; pos += x.positive; mix += x.mixed; tot += x.review_count; });
+      const np = pct(neg, tot), pp = pct(pos, tot), mp = pct(mix, tot);
+      barHtml = `<div class="pbar">
+        <div class="pl"><span style="color:var(--pos)">好评 ${pp.toFixed(0)}%</span>
+          <span class="muted">褒贬 ${mp.toFixed(0)}%</span>
+          <span style="color:var(--neg)">差评 ${np.toFixed(0)}%</span></div>
+        <div class="pt"><span style="width:${pp}%;background:var(--pos)"></span><span style="width:${mp}%;background:var(--mix)"></span><span style="width:${np}%;background:var(--neg)"></span></div>
+      </div>`;
+    }
+    return `<article class="pcard ${p.sample_type === "full" ? "full" : "sample"}" data-p="${esc(p.product_id)}">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div class="ttl">${esc(p.title || p.name)}</div>
+        <span class="badge ${p.sample_type === "full" ? "full" : "sample"}">${p.sample_type === "full" ? "全量" : "抽样"}</span>
+      </div>
+      <div class="pmath">
+        <span>评论 <b>${fmt(p.review_count)}</b></span>
+        <span>评分 <b>${p.rating_avg ?? "–"}</b></span>
+        <span>维度 <b>${p.dimension_count}</b></span>
+      </div>
+      ${barHtml}
+      <div class="sbox" data-sid="${esc(p.product_id)}">${starBars(d?.product?.rating_distribution)}</div>
+    </article>`;
+  }).join("");
+
+  $$("#pgrid .pcard").forEach(c => c.addEventListener("click", () => openDetail(c.dataset.p)));
+
+  // 兜底：仍缺星级的卡片，单独补拉一次
+  const missing = $$("#pgrid .sbox").filter(b => b.querySelector(".muted"));
+  if (missing.length) {
+    await Promise.all(missing.map(async b => {
+      try {
+        const pid = b.dataset.sid;
+        const pj = await getJSON(`${pid}/product.json`);
+        b.innerHTML = starBars(pj.rating_distribution);
+      } catch (e) { /* 保持占位 */ }
+    }));
+  }
+}
+$("#q").addEventListener("input", e => { S.q = e.target.value.trim(); renderList(); });
+$("#onlyfull").addEventListener("change", e => { S.onlyFull = e.target.checked; renderList(); });
+$("#sortseg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-s]"); if (!b) return;
+  S.sort = b.dataset.s;
+  $$("#sortseg button").forEach(x => x.classList.toggle("on", x === b));
+  renderList();
+});
+
+/* ---------- 详情 ---------- */
+async function openDetail(pid) {
+  S.cur = pid; S.curDim = null; S.curGroup = "all";
+  show("detail");
+  const box = $("#dmain");
+  box.innerHTML = `<div class="empty">加载中…</div>`;
+  let d;
+  try { d = await product(pid); } catch (e) {
+    box.innerHTML = `<div class="empty"><div class="e">⚠</div>加载失败：${esc(e.message)}</div>`; return;
+  }
+  const p = d.product, s = d.summary;
+  const totRev = p.review_count_processed || p.review_count_included || 0;
+  const isFull = p.sample_type === "full";
+
+  // 维度总量
+  let neg = 0, pos = 0, mix = 0, all = 0;
+  s.dimensions.forEach(x => { neg += x.negative; pos += x.positive; mix += x.mixed; all += x.review_count; });
+
+  const rated = [1, 2, 3, 4, 5].map(k => ({ k, v: (p.rating_distribution || {})[String(k)] || 0 }));
+  const ratedMax = Math.max(...rated.map(x => x.v), 1);
+
+  box.innerHTML = `
+    <div class="phdr">
+      <button class="back" id="back">← 返回列表</button>
+      <h1>${esc(p.title)}</h1>
+      <div class="meta">
+        <span class="badge ${isFull ? "full" : "sample"}">${isFull ? "全量分析" : "抽样分析（150 条）"}</span>
+        <span>基于 <b>${fmt(totRev)}</b> 条评论</span>
+        <span>平均 <b>${p.rating_avg ?? "–"}</b> 星</span>
+        <span>覆盖 <b>${s.dimensions.length}</b> 个维度</span>
+        ${p.dropped && (p.dropped.empty || p.dropped.duplicate)
+          ? `<span class="muted">已剔除 空 ${p.dropped.empty} / 重复 ${p.dropped.duplicate}</span>` : ""}
+      </div>
+    </div>
+    <div class="pbody">
+      <div class="three">
+        <div class="card hl">
+          <h3>优点（好评最多的维度）</h3>
+          ${(s.highlights?.pros || []).map(x => `<div class="row"><span class="nm">${esc(x.name)}</span>
+            <span class="vl" style="color:var(--pos)">${fmt(x.positive)} 好评</span></div>`).join("") || `<div class="muted tiny">样本不足</div>`}
+        </div>
+        <div class="card hl">
+          <h3>短板（差评最集中的维度）</h3>
+          ${(s.highlights?.cons || []).map(x => `<div class="row"><span class="nm">${esc(x.name)}</span>
+            <span class="vl" style="color:var(--neg)">${fmt(x.negative)} 差评 · ${x.negative_rate}%</span></div>`).join("") || `<div class="muted tiny">没有突出的短板</div>`}
+        </div>
+        <div class="card hl">
+          <h3>星级分布</h3>
+          <div style="display:flex;gap:7px;align-items:flex-end;height:74px;padding-top:4px">
+            ${rated.map(x => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="font-size:10px;color:var(--ink3);font-variant-numeric:tabular-nums">${fmt(x.v)}</div>
+              <div style="width:100%;border-radius:3px 3px 0 0;background:${x.k >= 4 ? "var(--pos)" : x.k === 3 ? "var(--mix)" : "var(--neg)"};height:${Math.max(4, x.v / ratedMax * 46)}px"></div>
+              <div style="font-size:10.5px;color:var(--ink2)">${x.k}★</div>
+            </div>`).join("")}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px 18px;margin-top:14px">
+        <div class="sec-h" style="margin:0 0 12px">
+          <h2 style="font-size:14px">各维度评价构成</h2>
+          <span class="sub">点任一维度查看正反评论原文</span>
+        </div>
+        ${s.dimensions.slice().sort((a, b) => b.review_count - a.review_count).map(x => {
+          const t = x.review_count || 1;
+          return `<div class="dimrow" data-dim="${esc(x.name)}">
+            <span class="nm">${esc(x.name)}</span>
+            <span class="dbar" title="好评 ${x.positive} / 褒贬都有 ${x.mixed} / 差评 ${x.negative}">
+              <span class="p" style="width:${pct(x.positive, t)}%"></span>
+              <span class="m" style="width:${pct(x.mixed, t)}%"></span>
+              <span class="n" style="width:${pct(x.negative, t)}%"></span>
+              <span class="o" style="width:${pct(x.other, t)}%"></span>
+            </span>
+            <span class="n">${fmt(x.review_count)} 条</span>
+          </div>`;
+        }).join("")}
+        <div class="legend" style="margin-top:12px">
+          <div class="lg-i"><div class="lg-sw" style="background:var(--pos)"></div>好评</div>
+          <div class="lg-i"><div class="lg-sw" style="background:var(--mix)"></div>褒贬都有</div>
+          <div class="lg-i"><div class="lg-sw" style="background:var(--neg)"></div>差评</div>
+          <div class="lg-i"><div class="lg-sw" style="background:#d8dde4"></div>中性/其他</div>
+        </div>
+      </div>
+
+      <div id="cbox" style="margin-top:20px"></div>
+    </div>`;
+
+  $("#back").addEventListener("click", () => show("list"));
+  $$("#dmain .dimrow").forEach(r => r.addEventListener("click", () => loadComments(pid, r.dataset.dim, r)));
+}
+
+/* ---------- 评论区 ---------- */
+async function loadComments(pid, dimName, rowEl) {
+  $$("#dmain .dimrow").forEach(r => r.classList.toggle("sel", r === rowEl));
+  S.curDim = dimName; S.curGroup = "all";
+  const box = $("#cbox");
+  box.innerHTML = `<div class="empty">加载「${esc(dimName)}」评论…</div>`;
+  let a;
+  try { a = await aspect(pid, dimName); } catch (e) {
+    box.innerHTML = `<div class="empty">该维度暂无评论数据</div>`; return;
+  }
+  renderComments(a);
+}
+function renderComments(a) {
+  const c = a.counts || {};
+  const total = a.total_reviews || 0;
+  const g = a.groups || {};
+  const box = $("#cbox");
+
+  const groups = [
+    { k: "all", n: "全部", c: total, cls: "" },
+    { k: "positive", n: "好评", c: c.positive || 0, cls: "pos" },
+    { k: "negative", n: "差评", c: c.negative || 0, cls: "neg" },
+    { k: "mixed", n: "褒贬都有", c: c.mixed || 0, cls: "mix" },
+    { k: "other", n: "中性/其他", c: c.other || 0, cls: "" }
+  ].filter(x => x.k === "all" || x.c > 0);
+
+  let items = [];
+  if (S.curGroup === "all") {
+    ["negative", "mixed", "positive", "other"].forEach(k => items.push(...(g[k] || [])));
+  } else {
+    items = (g[S.curGroup] || []).slice();
+  }
+  // 差评优先展示
+  const order = { negative: 0, mixed: 1, positive: 2, other: 3 };
+  items.sort((x, y) => {
+    const gx = S.curGroup === "all" ? order[groupOf(x, g)] ?? 9 : 1;
+    const gy = S.curGroup === "all" ? order[groupOf(y, g)] ?? 9 : 1;
+    return gx - gy || (x.rating || 0) - (y.rating || 0);
+  });
+
+  box.innerHTML = `
+    <div class="sec-h" style="margin:0 0 11px">
+      <h2 style="font-size:14px">「${esc(a.dimension?.name || "")}」评论</h2>
+      <span class="sub">共 ${fmt(total)} 条评论提到这一点</span>
+    </div>
+    <div class="cmtbar">
+      ${groups.map(x => `<button class="pill ${x.cls} ${S.curGroup === x.k ? "on" : ""}" data-g="${x.k}">
+        ${x.n}<span class="c">${fmt(x.c)}</span></button>`).join("")}
+      <span class="muted tiny" style="margin-left:auto">同一评论既夸又骂 → 计入「褒贬都有」，两列都会出现</span>
+    </div>
+    <div id="clist"></div>`;
+
+  $$("#cbox .pill").forEach(b => b.addEventListener("click", () => {
+    S.curGroup = b.dataset.g; renderComments(a);
+  }));
+
+  $("#clist").innerHTML = items.length ? items.slice(0, 120).map(it => commentCard(it, g)).join("")
+    : `<div class="empty">该分组暂无评论</div>`;
+  if (items.length > 120) {
+    $("#clist").insertAdjacentHTML("beforeend",
+      `<p class="muted tiny" style="text-align:center;padding:14px">仅显示前 120 条，共 ${fmt(items.length)} 条</p>`);
+  }
+  $$("#clist .cmt").forEach(x => x.addEventListener("click", e => {
+    if (e.target.closest(".more")) return;
+    openDrawer(x.dataset.rid, a);
+  }));
+  $$("#clist .more").forEach(b => b.addEventListener("click", e => {
+    e.stopPropagation();
+    const t = b.previousElementSibling;
+    const on = t.style.display !== "block";
+    t.style.display = on ? "block" : "none";
+    b.textContent = on ? "收起" : "查看全文";
+  }));
+}
+function groupOf(it, g) {
+  for (const k of ["positive", "negative", "mixed", "other"]) {
+    if ((g[k] || []).some(x => x.review_id === it.review_id)) return k;
+  }
+  return "other";
+}
+function hlQuote(q, kind) {
+  if (!q) return "";
+  // 引文本身已是命中的原句，整句高亮关键片段：直接加高亮底色
+  return `<div class="q ${kind}"><em>“${esc(q)}”</em></div>`;
+}
+function commentCard(it, g) {
+  const kind = groupOf(it, g) === "mixed" ? "m" : groupOf(it, g) === "negative" ? "n" : "p";
+  const r = Math.round(it.rating || 0);
+  const isMixed = groupOf(it, g) === "mixed";
+  const pos = (it.positive_quotes || []).slice(0, isMixed ? 1 : 2);
+  const neg = (it.negative_quotes || []).slice(0, isMixed ? 1 : 2);
+  const zh = (it.opinions_zh || []).slice(0, 4);
+  const txt = it.text || "";
+  const long = txt.length > 260;
+  return `<div class="cmt" data-rid="${esc(it.review_id)}">
+    <div class="ch">
+      <span class="rs r${r}">${r} 星</span>
+      ${(it.scenes || []).slice(0, 3).map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+      ${isMixed ? `<span class="tag" style="background:var(--mix-bg);color:#7d5e20">褒贬都有</span>` : ""}
+      ${it.evidence_ok === false ? `<span class="tag" style="background:#fdf6e6;color:#8a6a1c">引文待核</span>` : ""}
+      <span class="muted" style="margin-left:auto">${esc(it.review_id)}</span>
+    </div>
+    ${zh.length ? `<ul class="zh">${zh.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${neg.map(q => hlQuote(q, "n")).join("")}
+    ${pos.map(q => hlQuote(q, "p")).join("")}
+    ${txt ? `<div class="full-t" style="display:none">${esc(txt)}</div>
+      ${long ? `<button class="more">查看全文</button>` : ""}` : ""}
+  </div>`;
+}
+
+/* ---------- 证据抽屉 ---------- */
+function openDrawer(rid, a) {
+  $("#dt").textContent = "证据回溯 · " + rid;
+  // 找到该条
+  let it = null, kind = "other";
+  for (const k of ["positive", "negative", "mixed", "other"]) {
+    const f = (a.groups?.[k] || []).find(x => x.review_id === rid);
+    if (f) { it = f; kind = k; break; }
+  }
+  if (!it) { $("#dbody").innerHTML = `<div class="empty">未找到该条评论</div>`; return; }
+  const r = Math.round(it.rating || 0);
+  $("#dbody").innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <span class="rs r${r}">${r} 星</span>
+      <span class="tag">${esc(a.dimension?.name || "")}</span>
+      <span class="tag" style="background:${kind === "negative" ? "var(--neg-bg);color:#8f3f38" : kind === "positive" ? "var(--pos-bg);color:#2c6b4c" : "var(--mix-bg);color:#7d5e20"}">
+        ${kind === "positive" ? "好评" : kind === "negative" ? "差评" : kind === "mixed" ? "褒贬都有" : "其他"}</span>
+      ${(it.scenes || []).map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+      <span class="muted tiny" style="margin-left:auto">${esc(rid)}</span>
+    </div>
+    ${(it.opinions_zh || []).length ? `<div style="margin-bottom:12px">
+      <div class="muted tiny" style="margin-bottom:6px">AI 中文概括</div>
+      <ul class="zh" style="margin:0">${it.opinions_zh.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    </div>` : ""}
+    ${(it.negative_quotes || []).length ? `<div style="margin-bottom:12px">
+      <div class="muted tiny" style="margin-bottom:6px">命中的差评原句</div>
+      ${it.negative_quotes.map(q => hlQuote(q, "n")).join("")}
+    </div>` : ""}
+    ${(it.positive_quotes || []).length ? `<div style="margin-bottom:12px">
+      <div class="muted tiny" style="margin-bottom:6px">命中的好评原句</div>
+      ${it.positive_quotes.map(q => hlQuote(q, "p")).join("")}
+    </div>` : ""}
+    ${(it.mixed_quotes || []).length ? `<div style="margin-bottom:12px">
+      <div class="muted tiny" style="margin-bottom:6px">命中的褒贬原句</div>
+      ${it.mixed_quotes.map(q => hlQuote(q, "m")).join("")}
+    </div>` : ""}
+    <div>
+      <div class="muted tiny" style="margin-bottom:6px">评论全文</div>
+      <div class="full-t" style="display:block">${esc(it.text || "")}</div>
+    </div>
+    <p class="muted tiny" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line2)">
+      每条引文都能在原文中定位${it.evidence_ok === false ? "；本条引文未通过自动核验（标为待核）" : "，已通过自动核验"}。
+    </p>`;
+  $("#mask").classList.add("on");
+  $("#drawer").classList.add("on");
+}
+function closeDrawer() {
+  $("#mask").classList.remove("on");
+  $("#drawer").classList.remove("on");
+}
+$("#mask").addEventListener("click", closeDrawer);
+$("#dx").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+/* ---------- 对比 ---------- */
+async function renderCompare() {
+  const box = $("#cpick");
+  closeDrawer();
+  const list = (S.index.products || []).slice().sort((a, b) =>
+    (b.sample_type === "full") - (a.sample_type === "full") || b.review_count - a.review_count);
+  box.innerHTML = list.map(p => {
+    const on = S.picked.has(p.product_id);
+    return `<button class="pill ${on ? "on" : ""}" data-p="${esc(p.product_id)}">
+      ${esc((p.name || p.title).slice(0, 34))}
+      <span class="c">${p.sample_type === "full" ? "全量" : "抽样"}</span></button>`;
+  }).join("");
+  $$("#cpick .pill").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.p;
+    if (S.picked.has(id)) S.picked.delete(id);
+    else {
+      if (S.picked.size >= 6) return;
+      S.picked.add(id);
+    }
+    renderCompare();
+  }));
+
+  if (!S.picked.size) {
+    // 默认选 3 款全量
+    (S.index.products || []).filter(p => p.sample_type === "full").slice(0, 3)
+      .forEach(p => S.picked.add(p.product_id));
+    if (S.picked.size) return renderCompare();
+  }
+  buildMatrix([...S.picked]);
+}
+
+async function buildMatrix(ids) {
+  const box = $("#mxbox");
+  box.innerHTML = `<div class="empty">加载中…</div>`;
+  try {
+    const datas = await Promise.all(ids.map(id => product(id)));
+    const byId = {};
+    datas.forEach(d => byId[d.product.product_id] = d);
+    const dims = S.meta.dimensions;
+
+    $("#mxnote").textContent = `已选 ${ids.length} 款 · ${dims.length} 个维度`;
+
+    const head = ids.map(id => {
+      const d = byId[id], p = d.product;
+      return `<th><div style="max-width:104px;white-space:normal;line-height:1.3;margin:0 auto">${esc(shortName(p.title))}</div>
+        <div class="muted" style="font-weight:400;font-size:10px;margin-top:3px">${p.sample_type === "full" ? "全量" : "抽样"}</div></th>`;
+    }).join("");
+
+    const rows = dims.map(dm => {
+      const cells = ids.map(id => {
+        const d = byId[id];
+        const x = (d.summary.dimensions || []).find(y => y.id === dm.id);
+        if (!x || !x.review_count) return `<td class="cell"><div class="in" style="background:#f7f8fa"><span class="na">无数据</span></div></td>`;
+        const pp = pct(x.positive, x.review_count);
+        const c = heat(pp);
+        return `<td class="cell" data-p="${esc(id)}" data-d="${esc(dm.name)}">
+          <div class="in" style="background:${c.bg};color:${c.fg};box-shadow:inset 0 0 0 1px ${c.bd}">
+            <span>${pp.toFixed(0)}%</span>
+            <span class="sm">${fmt(x.review_count)} 条</span>
+          </div></td>`;
+      }).join("");
+      return `<tr><th>${esc(dm.name)}</th>${cells}</tr>`;
+    }).join("");
+
+    box.innerHTML = `<div class="mxwrap"><table class="mx">
+      <thead><tr><th>维度</th>${head}</tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+
+    $$("#mxbox .cell[data-p]").forEach(td => td.addEventListener("click", async () => {
+      const pid = td.dataset.p, dim = td.dataset.d;
+      try { openDrawerDim(pid, dim, byId[pid]); } catch (e) { }
+    }));
+  } catch (e) {
+    box.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`;
+  }
+}
+/* 好评占比 → 热力色：0% 红 → 50% 黄 → 100% 绿，用鲜明但有层次的色阶 */
+function heat(pp) {
+  const stops = [
+    [0, "#c0392b"], [20, "#d05a4c"], [35, "#dd8a72"],
+    [50, "#d9ae5f"], [62, "#b8bf6a"], [75, "#7ba86b"],
+    [88, "#4a9463"], [100, "#2f7b56"]
+  ];
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (pp >= stops[i][0] && pp <= stops[i + 1][0]) { lo = stops[i]; hi = stops[i + 1]; break; }
+  }
+  const t = hi[0] === lo[0] ? 0 : (pp - lo[0]) / (hi[0] - lo[0]);
+  const a = hex2rgb(lo[1]), b = hex2rgb(hi[1]);
+  const mix = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  // 文字：深底白字，中段深字
+  const dark = mix[0] * .299 + mix[1] * .587 + mix[2] * .114 < 150;
+  return {
+    bg: `rgb(${mix.join(",")})`,
+    fg: dark ? "#fff" : "#1a1d21",
+    bd: "rgba(0,0,0,.06)"
+  };
+}
+function hex2rgb(h) {
+  h = h.replace("#", "");
+  return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+}
+function shortName(t) {
+  if (!t) return "未知";
+  return t.split(/[,(]/)[0].replace(/Headphones|Wireless|Bluetooth/gi, "").trim().slice(0, 30);
+}
+async function openDrawerDim(pid, dimName, d) {
+  const a = await aspect(pid, dimName);
+  const x = (d.summary.dimensions || []).find(y => y.name === dimName);
+  $("#dt").textContent = `${shortName(d.product.title)} · ${dimName}`;
+  const reps = x?.representative_review_ids || {};
+  const mk = (k, label, cls) => {
+    const arr = reps[k] || [];
+    const items = arr.map(rid => {
+      const it = (a.groups?.[k] || []).find(z => z.review_id === rid);
+      if (!it) return "";
+      const q = k === "negative" ? (it.negative_quotes || [])[0] : k === "positive" ? (it.positive_quotes || [])[0] : (it.mixed_quotes || [])[0];
+      return `<div class="cmt" data-rid="${esc(it.review_id)}">
+        <div class="ch"><span class="rs r${Math.round(it.rating || 0)}">${Math.round(it.rating || 0)} 星</span>
+        <span class="muted" style="margin-left:auto">${esc(it.review_id)}</span></div>
+        ${(it.opinions_zh || []).slice(0, 3).map(z => `<div class="zh">· ${esc(z)}</div>`).join("")}
+        ${q ? hlQuote(q, cls) : ""}
+      </div>`;
+    }).join("");
+    return items ? `<div style="margin-bottom:16px"><div class="muted tiny" style="margin-bottom:7px">${label}</div>${items}</div>` : "";
+  };
+  $("#dbody").innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;font-size:12.5px">
+      <span>提到该维度 <b>${fmt(x?.review_count || 0)}</b> 条评论</span>
+      <span style="color:var(--pos)">好评 ${fmt(x?.positive || 0)}</span>
+      <span style="color:var(--neg)">差评 ${fmt(x?.negative || 0)}</span>
+      <span style="color:var(--mix)">褒贬都有 ${fmt(x?.mixed || 0)}</span>
+    </div>
+    ${mk("negative", "典型差评", "n")}
+    ${mk("mixed", "褒贬都有", "m")}
+    ${mk("positive", "典型好评", "p")}
+    <p class="muted tiny" style="border-top:1px solid var(--line2);padding-top:12px">以上为系统按证据完整度挑选的代表评论；点任一卡片查看全文。</p>`;
+  $$("#dbody .cmt").forEach(c => c.addEventListener("click", () => openDrawer(c.dataset.rid, a)));
+  $("#mask").classList.add("on");
+  $("#drawer").classList.add("on");
+}
+
+/* ---------- 上传 ---------- */
+const drop = $("#drop"), fin = $("#files");
+drop.addEventListener("click", () => fin.click());
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("over");
+  addFiles([...e.dataTransfer.files]);
+});
+fin.addEventListener("change", () => addFiles([...fin.files]));
+function addFiles(fs) {
+  fs.forEach(f => {
+    if (!/\.(jsonl|json)$/i.test(f.name)) return;
+    if (S.uploaded.some(x => x.name === f.name)) return;
+    S.uploaded.push(f);
+  });
+  renderFiles();
+}
+function renderFiles() {
+  $("#flist").innerHTML = S.uploaded.map((f, i) => `<div class="fitem">
+    <span>📄</span><span class="nm">${esc(f.name)}</span>
+    <span class="muted tiny">${(f.size / 1024 / 1024).toFixed(2)} MB</span>
+    <button class="x" style="width:22px;height:22px;font-size:12px" data-i="${i}">✕</button>
+  </div>`).join("");
+  $$("#flist .x").forEach(b => b.addEventListener("click", () => {
+    S.uploaded.splice(+b.dataset.i, 1); renderFiles();
+  }));
+  $("#go").disabled = !S.uploaded.some(f => /results\.jsonl$/i.test(f.name));
+}
+$("#clr").addEventListener("click", () => { S.uploaded = []; renderFiles(); $("#ulog").innerHTML = ""; });
+$("#go").addEventListener("click", async () => {
+  const rf = S.uploaded.find(f => /results\.jsonl$/i.test(f.name));
+  const pf = S.uploaded.find(f => /products\.json$/i.test(f.name));
+  if (!rf) { $("#ulog").innerHTML = `<div class="log bad">需要 results.jsonl</div>`; return; }
+
+  const fd = new FormData();
+  fd.append("results", rf);
+  if (pf) fd.append("products", pf);
+  fd.append("mode", document.querySelector('input[name=mode]:checked').value);
+
+  const btn = $("#go");
+  btn.disabled = true; btn.innerHTML = `<span class="spin"></span>导入中…`;
+  $("#ulog").innerHTML = `<div class="log run">正在上传并重算，请稍候…</div>`;
+  try {
+    const r = await fetch("/api/upload", { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || "导入失败");
+    $("#ulog").innerHTML = `<div class="log ok">✓ 导入成功
+商品数：${j.products} 款
+评论合计：${j.total_reviews} 条
+用时：${j.seconds}s
+更新时间：${j.generated_at}
+${(j.list || []).map(x => `  · ${x.product_id}  ${x.review_count} 条  ${x.sample_type === "full" ? "全量" : "抽样"}`).join("\n")}</div>`;
+    S.cache = {}; S.products = {};
+    await boot(true);
+  } catch (e) {
+    $("#ulog").innerHTML = `<div class="log bad">✗ ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = "开始导入";
+  }
+});
+
+/* ---------- 启动 ---------- */
+async function boot(isReload) {
+  try {
+    const mode = await detectMode();
+    S.backend = mode.backend;
+
+    let idx, meta;
+    if (mode.backend) {
+      const h = mode.health;
+      if (!h.web_data_ready || !h.products) {
+        $("#pgrid").innerHTML = `<div class="empty" style="grid-column:1/-1">
+          <div class="e">📦</div>还没有数据<br>
+          <span class="tiny">请到「导入数据」上传 results.jsonl 与 products.json，或先运行 python3 backend/build.py</span></div>`;
+        return;
+      }
+      [idx, meta] = await Promise.all([
+        getJSON("index.json"),
+        fetch("/api/meta").then(r => r.json())
+      ]);
+      S.readOnly = !!h.read_only;
+    } else {
+      // 静态模式：一次性读 bundle.json，口径信息从里面现算
+      const b = await loadBundle();
+      idx = { generated_at: b.generated_at, count: b.index.length,
+              dimensions: b.dimensions, products: b.index };
+      meta = metaFromIndex(idx);
+      S.readOnly = true;   // 静态站点没有上传能力
+    }
+
+    S.index = idx; S.meta = meta;
+
+    // 只读/静态模式下隐藏上传入口
+    const navUp = document.querySelector('#nav button[data-v="upload"]');
+    if (navUp) navUp.style.display = S.readOnly ? "none" : "";
+
+    renderCaliber();
+    await renderList();
+    if (!isReload) {
+      const hash = location.hash.slice(1);
+      if (hash && (S.index.products || []).some(p => p.product_id === hash)) openDetail(hash);
+    }
+  } catch (e) {
+    $("#pgrid").innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <div class="e">⚠</div>数据加载失败：${esc(e.message)}<br>
+      <span class="tiny">请确认数据目录存在且 index.json 可读</span></div>`;
+  }
+}
+
+/* 静态模式下从 index.json 推导出后端 /api/meta 的等价结构 */
+function metaFromIndex(idx) {
+  const ps = idx.products || [];
+  const full = ps.filter(p => p.sample_type === "full");
+  const samp = ps.filter(p => p.sample_type === "sample");
+  const sum = a => a.reduce((s, p) => s + (p.review_count || 0), 0);
+  return {
+    generated_at: idx.generated_at || null,
+    product_count: ps.length,
+    full_count: full.length,
+    sample_count: samp.length,
+    reviews_full: sum(full),
+    reviews_sample: sum(samp),
+    reviews_total: sum(ps),
+    dimensions: idx.dimensions || []
+  };
+}
+boot();
+</script>
+</body>
+</html>

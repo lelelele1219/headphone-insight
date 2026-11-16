@@ -241,6 +241,12 @@ table.mx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;b
 .btn:disabled{background:#c8ced6;cursor:not-allowed}
 .btn.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
 .btn.ghost:hover{background:var(--line2)}
+/* 评论「加载更多」按钮 */
+.btn-more{border:1px solid var(--line);background:var(--panel);color:var(--ink2);font-weight:600;
+  font-size:13px;padding:9px 26px;border-radius:20px;cursor:pointer;transition:.15s;
+  box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.btn-more:hover{background:var(--line2);border-color:#c3cbd6;color:var(--ink)}
+.btn-more:active{transform:translateY(1px)}
 .log{margin-top:14px;padding:12px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap;max-height:280px;overflow:auto}
 .log.ok{background:var(--pos-bg);color:#2c6b4c;border:1px solid #cfe6da}
 .log.bad{background:var(--neg-bg);color:#8f3f38;border:1px solid #f0d3d0}
@@ -280,7 +286,7 @@ table.mx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;b
   <section class="view on" id="v-list">
     <div class="caliber" id="caliber"></div>
     <div class="toolbar">
-      <div class="search"><span class="ico">🔍</span><input id="q" placeholder="搜索品牌或型号，如 Bose / 降噪…"></div>
+      <div class="search"><span class="ico">🔍</span><input id="q" placeholder="搜索品牌、型号或维度，如 Bose、降噪…"></div>
       <div class="seg" id="sortseg">
         <button data-s="reviews" class="on">按评论数</button>
         <button data-s="avg">按评分</button>
@@ -409,9 +415,12 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 const pct = (a, b) => b > 0 ? (a / b * 100) : 0;
 const fmt = n => (n == null ? "–" : Number(n).toLocaleString("zh-CN"));
 
+const CM_PAGE = 120;   // 评论区每次加载的条数
+
 const S = {
   index: null, meta: null, dims: [], products: {},
   cur: null, curDim: null, curGroup: "all",
+  cmtShown: CM_PAGE, curAspect: null,
   sort: "reviews", q: "", onlyFull: false,
   picked: new Set(), cache: {},
   uploaded: []
@@ -468,6 +477,7 @@ async function aspect(pid, name) {
 
 /* ---------- 视图切换 ---------- */
 function show(v) {
+  closeDrawer();   // 切视图时关掉「评论原文」侧栏，否则会残留遮罩挡住页面
   $$(".view").forEach(e => e.classList.toggle("on", e.id === "v-" + v));
   $$("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -525,16 +535,27 @@ async function warmSummaries(list) {
 
 async function renderList() {
   const g = $("#pgrid");
+  g.innerHTML = `<div class="empty" style="grid-column:1/-1">加载中…</div>`;
+  // 先把所有商品的 summary 备好，搜索才能按维度名命中（两种模式通用）
+  await warmSummaries(S.index.products || []);
+
   let list = (S.index.products || []).slice();
   if (S.q) {
-    const q = S.q.toLowerCase();
-    list = list.filter(p => (p.title || "").toLowerCase().includes(q) || (p.name || "").toLowerCase().includes(q)
-      || (p.product_id || "").toLowerCase().includes(q));
+    // 空格分隔多关键词，全部命中才显示（如 "bose 降噪"）
+    const kws = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+    list = list.filter(p => {
+      const d = S.products[p.product_id];
+      const dimNames = p.dimension_names
+        || (d && d.summary && d.summary.dimensions || []).map(x => x.name)
+        || [];
+      const hay = [
+        p.title || "", p.name || "", p.product_id || "",
+        ...dimNames                            // 维度名也能搜到商品
+      ].join(" ").toLowerCase();
+      return kws.every(k => hay.includes(k));
+    });
   }
   if (S.onlyFull) list = list.filter(p => p.sample_type === "full");
-
-  g.innerHTML = `<div class="empty" style="grid-column:1/-1">加载中…</div>`;
-  await warmSummaries(S.index.products || []);
 
   if (S.sort === "reviews") list.sort((a, b) => b.review_count - a.review_count);
   if (S.sort === "avg") list.sort((a, b) => (b.rating_avg || 0) - (a.rating_avg || 0));
@@ -700,7 +721,7 @@ async function openDetail(pid) {
 /* ---------- 评论区 ---------- */
 async function loadComments(pid, dimName, rowEl) {
   $$("#dmain .dimrow").forEach(r => r.classList.toggle("sel", r === rowEl));
-  S.curDim = dimName; S.curGroup = "all";
+  S.curDim = dimName; S.curGroup = "all"; S.cmtShown = CM_PAGE;
   const box = $("#cbox");
   box.innerHTML = `<div class="empty">加载「${esc(dimName)}」评论…</div>`;
   let a;
@@ -714,6 +735,7 @@ function renderComments(a) {
   const total = a.total_reviews || 0;
   const g = a.groups || {};
   const box = $("#cbox");
+  S.curAspect = a;
 
   const groups = [
     { k: "all", n: "全部", c: total, cls: "" },
@@ -750,26 +772,66 @@ function renderComments(a) {
     <div id="clist"></div>`;
 
   $$("#cbox .pill").forEach(b => b.addEventListener("click", () => {
-    S.curGroup = b.dataset.g; renderComments(a);
+    S.curGroup = b.dataset.g;
+    S.cmtShown = CM_PAGE;          // 切分组回到第一页
+    renderComments(a);
   }));
 
-  $("#clist").innerHTML = items.length ? items.slice(0, 120).map(it => commentCard(it, g)).join("")
+  $("#clist").innerHTML = items.length ? items.slice(0, S.cmtShown).map(it => commentCard(it, g)).join("")
     : `<div class="empty">该分组暂无评论</div>`;
-  if (items.length > 120) {
-    $("#clist").insertAdjacentHTML("beforeend",
-      `<p class="muted tiny" style="text-align:center;padding:14px">仅显示前 120 条，共 ${fmt(items.length)} 条</p>`);
-  }
-  $$("#clist .cmt").forEach(x => x.addEventListener("click", e => {
-    if (e.target.closest(".more")) return;
-    openDrawer(x.dataset.rid, a);
-  }));
-  $$("#clist .more").forEach(b => b.addEventListener("click", e => {
-    e.stopPropagation();
-    const t = b.previousElementSibling;
-    const on = t.style.display !== "block";
-    t.style.display = on ? "block" : "none";
-    b.textContent = on ? "收起" : "查看全文";
-  }));
+  renderMoreBtn(items, g);
+  bindCommentEvents(a);
+}
+/* 加载更多：每次追加 CM_PAGE 条，不重绘已有内容（避免闪烁与滚动跳位） */
+function renderMoreBtn(items, g) {
+  const old = $("#morewrap");
+  if (old) old.remove();
+  if (items.length <= S.cmtShown) return;
+  const left = items.length - S.cmtShown;
+  $("#clist").insertAdjacentHTML("beforeend",
+    `<div id="morewrap" style="text-align:center;padding:16px 0 6px">
+      <button id="morebtn" class="btn-more">加载更多（还有 ${fmt(left)} 条）</button>
+      <div class="muted tiny" style="margin-top:8px">已显示 ${fmt(S.cmtShown)} / ${fmt(items.length)} 条</div>
+    </div>`);
+  $("#morebtn").addEventListener("click", () => {
+    const btn = $("#morebtn");
+    btn.disabled = true;
+    btn.textContent = "加载中…";
+    const from = S.cmtShown;
+    S.cmtShown = Math.min(S.cmtShown + CM_PAGE, items.length);
+    // 记下按钮位置，追加后把按钮重新拉回视野（否则新内容把按钮顶走，用户会迷路）
+    const wrap = $("#morewrap");
+    const anchorTop = wrap ? wrap.getBoundingClientRect().top : null;
+    // 插到 #morewrap 之前，保留已有卡片
+    wrap.insertAdjacentHTML("beforebegin",
+      items.slice(from, S.cmtShown).map(it => commentCard(it, g)).join(""));
+    renderMoreBtn(items, g);
+    const nw = $("#morewrap");
+    if (nw && anchorTop != null) {
+      const delta = nw.getBoundingClientRect().top - anchorTop;
+      if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "instant" });
+    }
+  });
+}
+/* 事件委托：绑定在 #clist 自身上打标记，#clist 被重建后会自动重新绑定；
+   同一次渲染内多次调用不会重复绑定 */
+function bindCommentEvents(a) {
+  const list = $("#clist");
+  if (!list || list.dataset.bound === "1") return;
+  list.dataset.bound = "1";
+  list.addEventListener("click", e => {
+    const moreBtn = e.target.closest(".more");
+    if (moreBtn) {                       // 查看全文 / 收起
+      e.stopPropagation();
+      const t = moreBtn.previousElementSibling;
+      const on = t.style.display !== "block";
+      t.style.display = on ? "block" : "none";
+      moreBtn.textContent = on ? "收起" : "查看全文";
+      return;
+    }
+    const card = e.target.closest(".cmt");
+    if (card) openDrawer(card.dataset.rid, S.curAspect || a);
+  });
 }
 function groupOf(it, g) {
   for (const k of ["positive", "negative", "mixed", "other"]) {
